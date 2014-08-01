@@ -165,7 +165,54 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
-    return;
+  char *argv[MAXARGS];
+  char buf[MAXLINE];//holds the modified cmd
+  int bg;
+  pid_t pid;
+  sigset_t mask;
+
+  strcpy(buf,cmdline);
+  bg = parseline(buf, argv);
+  if(argv[0] == NULL)
+    return; //Ignore the empty lines
+
+  if(!builtin_cmd(argv))
+    {
+      sigemptyset(&mask);
+      sigaddset(&mask, SIGCHLD);
+      sigprocmask(SIG_BLOCK, &mask, NULL);
+      /*chile process*/
+      if((pid = fork()) == 0)
+	{
+	  setpgid(0,0);/*Change the group id of the child process;*/
+	  sigprocmask(SIG_UNBLOCK, &mask, NULL);/*Child has the same mask with the parent*/
+	  if(execve(argv[0], argv, environ) < 0)
+	    {
+	      printf("%s: Command not found.\n", argv[0]);
+	      exit(0);
+	    }
+	  
+	}
+      
+      /*Parent process*/
+      if(!bg)
+	{
+	  addjob(jobs,pid,FG,cmdline);
+	  sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	  waitfg(pid);
+	}
+      else
+	{
+	  addjob(jobs,pid,BG,cmdline);
+	  printf("[%d] (%d) %s",pid2jid(pid), pid, cmdline);
+	  sigprocmask(SIG_UNBLOCK, &mask, NULL);  
+	}
+	
+     
+      
+    }
+
+  return;
 }
 
 /* 
@@ -231,7 +278,14 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
-    return 0;     /* not a builtin command */
+  if(!strcmp(argv[0], "quit"))
+    exit(0);
+  if(!strcmp(argv[0], "jobs"))
+    {
+      listjobs(jobs);
+      return 1;
+    }
+  return 0;     /* not a builtin command */
 }
 
 /* 
@@ -247,7 +301,8 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    return;
+  pause();
+  return;
 }
 
 /*****************
@@ -263,7 +318,17 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    return;
+  pid_t pid;
+  
+  while((pid = waitpid(-1, NULL, WNOHANG)) > 0) /*handle the signal can not quene,we need to use while loop,but if no child is terminated,parent need to return immediately,not suspend*/
+    {
+      deletejob(jobs, pid);
+    }
+  /*
+  if(errno != ECHILD && errno != EINTR)
+    unix_error("waitpid error");
+  */
+  return;
 }
 
 /* 
