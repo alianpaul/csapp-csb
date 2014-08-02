@@ -121,13 +121,15 @@ int main(int argc, char **argv)
     Signal(SIGINT,  sigint_handler);   /* ctrl-c */
     Signal(SIGTSTP, sigtstp_handler);  /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);  /* Terminated or stopped child */
+    /**All the Children do not execute signal()function, so they will not 
+     **catch the signal*/
 
     /* This one provides a clean way to kill the shell */
     Signal(SIGQUIT, sigquit_handler); 
 
     /* Initialize the job list */
     initjobs(jobs);
-
+ 
     /* Execute the shell's read/eval loop */
     while (1) {
 
@@ -301,7 +303,16 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-  pause();
+
+  while (pid == fgpid(jobs)) {  
+        sleep(0);  
+    }
+ 
+  //pause();
+  /*when only use the pause(),Running with trace07.txt
+   *something strange happened,the foreground job do not finish
+   *but the shell return start running
+   */
   return;
 }
 
@@ -319,7 +330,7 @@ void waitfg(pid_t pid)
 void sigchld_handler(int sig) 
 {
   pid_t pid;
-  
+  printf("CHLD \n");
   while((pid = waitpid(-1, NULL, WNOHANG)) > 0) /*handle the signal can not quene,we need to use while loop,but if no child is terminated,parent need to return immediately,not suspend*/
     {
       deletejob(jobs, pid);
@@ -338,6 +349,14 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+  pid_t pid = fgpid(jobs);
+  if(pid != 0)
+    { 
+      printf("Job [%d] (%d) terminated by signal 2\n",pid2jid(pid), pid);
+      kill(-pid, SIGKILL); /*the reap work will do by the CHLD_handler*/
+      return;
+    }
+  else
     return;
 }
 
