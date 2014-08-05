@@ -287,6 +287,11 @@ int builtin_cmd(char **argv)
       listjobs(jobs);
       return 1;
     }
+  if(!(strcmp(argv[0], "bg") && strcmp(argv[0], "fg")))
+    {
+      do_bgfg(argv);
+      return 1;
+    }
   return 0;     /* not a builtin command */
 }
 
@@ -295,7 +300,77 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    return;
+  
+  if(argv[1] != NULL)
+    {
+      /*deal with the argument*/
+      char flag = argv[1][0];
+      if((flag != '%') 
+	 && (flag < '0' || flag > '9' ))
+	{
+	  /*check the argument*/
+	  printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+	  return;
+	}
+      else
+	{
+	  int pid;
+	  int jid;
+	  struct job_t* pjob = NULL;
+	  /*the argument is correct
+	   *get the job pointer,if didn't find return
+	   */
+	  if(flag == '%')
+	    {
+	      /*jid is inputed*/
+	      jid = atoi(argv[1]+1);
+	      pjob = getjobjid(jobs, jid);
+	      if(pjob == NULL)
+		{
+		  printf("%s: No such job\n",argv[1]);
+		  return;
+		}
+	    }
+	  else
+	    {
+	      /*pid is inputed*/
+	      pid = atoi(argv[1]);
+	      printf("%d\n",pid);
+	      pjob = getjobpid(jobs,pid);
+	      if(pjob == NULL)
+		{
+		  printf("%s: No such process\n", argv[1]);
+		  return;
+		}
+	    }
+	  /*get the job,then do the fg bg work**/
+	  if(!strcmp(argv[0], "bg"))
+	    {
+	      printf("[%d] (%d) %s",pjob->jid, pjob->pid, pjob->cmdline);
+	      kill(-pjob->pid, SIGCONT);
+	      pjob->state = BG;
+	    }
+	  else
+	    {
+	      if(pjob->state == ST)
+		{
+		  kill(-pjob->pid, SIGCONT);
+		  pjob->state = FG;
+		  waitfg(pjob->pid);
+		}
+	      else if(pjob->state == BG)
+		{
+		  pjob->state = FG;
+		  waitfg(pjob->pid);
+		}
+	    }
+	     
+	}
+
+    }
+  else
+    printf("%s command requires PID or %%jobid argument\n", argv[0]);
+  return;
 }
 
 /* 
@@ -330,7 +405,6 @@ void waitfg(pid_t pid)
 void sigchld_handler(int sig) 
 {
   pid_t pid;
-  printf("CHLD \n");
   while((pid = waitpid(-1, NULL, WNOHANG)) > 0) /*handle the signal can not quene,we need to use while loop,but if no child is terminated,parent need to return immediately,not suspend*/
     {
       deletejob(jobs, pid);
@@ -367,6 +441,17 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+  pid_t pid = fgpid(jobs);
+  if(pid != 0)
+    {
+      printf("Job [%d] (%d) stopped by signal 20\n",pid2jid(pid), pid);
+      kill(-pid, SIGTSTP);
+      struct job_t* pjob = getjobpid(jobs, pid);
+      if(pjob != NULL)
+	pjob->state = ST;
+      return;
+    }
+  else
     return;
 }
 
