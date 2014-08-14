@@ -56,8 +56,8 @@ team_t team = {
 #define PUT(p, val)  (*(unsigned int *)(p) = (val))    
 
 /* Read and write a double word at address p*/
-#define GET_DW(p)         (*(char **)(p))
-#define PUT_DW(p, val)    (*(char **)(p) = (val))
+#define GET_DW(p)         (*(unsigned long *)(p))
+#define PUT_DW(p, val)    (*(unsigned long *)(p) = (unsigned long)(val))
 
 /* Read the size and allocated fields from address p */
 #define GET_SIZE(p)  (GET(p) & ~0x7)                   
@@ -75,6 +75,47 @@ team_t team = {
 /*global variables*/
 static char *sgrg_free_listp = NULL;
 static char *heap_listp = NULL;
+
+/*private function*/
+static char *get_root_by(size_t size) 
+{
+  int base = 32;
+  char *current_free_listp = sgrg_free_listp;
+
+  if(size <= 24)
+    return current_free_listp;
+  current_free_listp += DSIZE;
+
+  while(((int)size - base) > 0) // need to change size to int type why?
+    {
+      base *= 2;
+      current_free_listp += DSIZE;
+    }
+  return current_free_listp;
+}
+static void *extend_heap(size_t words)
+{
+  char *bp,*current_free_list;
+  size_t size;
+
+  /*Allocate an even number of words to maintain alignment*/
+  size = ALIGN(words)*WSIZE;  //becarreful the size is in BYTE, the words is in WORDS
+  if((long)(bp = mem_sbrk(size)) == -1)
+    return NULL;
+
+  /*Initialize the new free block header/footer and the epilogue header*/
+  PUT(HDRP(bp), PACK(size, 0));
+  PUT(FTRP(bp), PACK(size, 0));
+  PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1));
+  printf("bp %lx\n",bp);
+  /*Initialize the new free block pred succ pointer
+   *Get the right root according to the size;
+   */
+  current_free_list = get_root_by(size);
+  //printf("root %lx \n", current_free_list);
+  PUT_DW(current_free_list, bp);
+  return NULL;
+}
 
 /* 
  * mm_init - initialize the malloc package.
@@ -105,10 +146,10 @@ int mm_init(void)
     return -1;
   
   for(i = 0; i < SGRG_LIST_NUM; i++)
-      PUT_DW(sgrg_free_listp + i*DSIZE, 2);
+    PUT_DW(sgrg_free_listp + i*DSIZE, 0);
     
   heap_listp = sgrg_free_listp + SGRG_LIST_NUM*DSIZE;
-  printf("heap %lx\n", heap_listp);
+  //printf("heap %lx\n", heap_listp);
   
   PUT(heap_listp, 0);                          /* Alignment padding */
   PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
@@ -117,11 +158,12 @@ int mm_init(void)
   heap_listp += (2*WSIZE);                    
   
   /*Extend the empty heap with a free block of CHUNKSIZE bytes*/
-  /*
-  if(extend_heap(CHUNKSIZE))
+ 
+  if(extend_heap(CHUNKSIZE/WSIZE) == NULL)
     return -1;
+  
   return 0;
-*/
+
 }
 
 /* 
@@ -166,23 +208,34 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 }
-/*
-static void *extend_heap(size_t words)
-{
-  return 0;
-}
-*/
+
 
 
 static int mm_check(void)
 {
+  /*check the initialized empty heap*/
   int i;
   for(i = 0; i < SGRG_LIST_NUM; i++)
     printf("%d %lx %lx\n", i, sgrg_free_listp+i*DSIZE, GET_DW(sgrg_free_listp+i*DSIZE));
-  for(i = 0; i < 5; i++)
-    printf("%lx %x\n", sgrg_free_listp + SGRG_LIST_NUM*DSIZE + i*WSIZE, GET(sgrg_free_listp + SGRG_LIST_NUM*DSIZE + i*WSIZE));
+  char *end_wordp = mem_heap_hi(); // returns the last byte in the heap
+  printf("%lx\n", end_wordp - 3);
+  char *i_p = NULL;
+  i = 0;
+
+  /*print the heap
+  for(i_p = heap_listp; i_p <= end_wordp - 3; i_p += 4)
+    {
+    printf("%lx %x %d\n", heap_listp + i*WSIZE, GET(i_p)
+	   ,GET_SIZE(i_p));
+    i++;
+    }
+  
+  printf("%x\n",*((unsigned int *)(end_wordp - 3)));
+  */
+    
   return 0;
 }
+
 
 int main()
 {
@@ -190,7 +243,7 @@ int main()
   mem_init();
   mm_init();
   mm_check();
-
+ 
   return 0;
 }
 
