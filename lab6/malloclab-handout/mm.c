@@ -56,8 +56,14 @@ team_t team = {
 #define PUT(p, val)  (*(unsigned int *)(p) = (val))    
 
 /* Read and write a double word at address p*/
-#define GET_DW(p)         (*(unsigned long *)(p))
+#define GET_DW(p)         (char *)(*(unsigned long *)(p))
 #define PUT_DW(p, val)    (*(unsigned long *)(p) = (unsigned long)(val))
+
+/*Read and write the pred and succ of the bp*/
+#define GET_PRED(bp)     (*(unsigned long *)(bp))
+#define GET_SUCC(bp)     (*(unsigned long *)((char *)(bp) - DSIZE))
+#define PUT_PRED(bp)     (*(unsigned long *)(bp) = (unsigned long)(val))
+#define PUT_SUCC(bp)     (*(unsigned long *)((char *)(bp) - DSIZE) = (unsigned long)(val))
 
 /* Read the size and allocated fields from address p */
 #define GET_SIZE(p)  (GET(p) & ~0x7)                   
@@ -77,6 +83,7 @@ static char *sgrg_free_listp = NULL;
 static char *heap_listp = NULL;
 
 /*private function*/
+/*fing the according root by the size of the block*/
 static char *get_root_by(size_t size) 
 {
   int base = 32;
@@ -93,6 +100,45 @@ static char *get_root_by(size_t size)
     }
   return current_free_listp;
 }
+
+static void insert_by_addr(char *bp)
+{
+  size_t size = GET_SIZE(HDRP(bp));
+  char *cf_listp = get_root_by(size);
+  char *cf_blockp = GET_DW(cf_listp);
+  if(cf_blockp == 0)
+    PUT_DW(cf_listp, bp); // the free list is empty
+  else
+    {
+      if(bp < cf_blockp)
+	{
+	  //bp is the smallest
+	  PUT_SUCC(bp, cf_blockp);
+	  PUT_PRED(cf_blockp, bp);
+	  PUT_DW(cf_listp, bp);
+	}
+      else
+	{
+	  while(GET_SUCC(cf_blockp) != 0 && bp > GET_SUCC(cf_blockp))
+	    cf_blockp = GET_SUCC(cf_blockp);
+
+	  PUT_SUCC(bp, GET_SUCC(cf_blockp));
+	  PUT_SUCC(cf_blockp, bp);
+
+	  PUT_PRED(bp, cf_blockp);
+	  PUT_PRED(GET_SUCC(bp), bp);
+	}
+     
+
+      
+    }
+  
+  
+ 
+  return ;
+}
+
+
 static void *extend_heap(size_t words)
 {
   char *bp,*current_free_list;
@@ -107,13 +153,18 @@ static void *extend_heap(size_t words)
   PUT(HDRP(bp), PACK(size, 0));
   PUT(FTRP(bp), PACK(size, 0));
   PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1));
+  
+  /*the pointer*/
+  PUT_PRED(bp, 0);
+  PUT_SUCC(bp, 0);
+  
   printf("bp %lx\n",bp);
   /*Initialize the new free block pred succ pointer
    *Get the right root according to the size;
    */
-  current_free_list = get_root_by(size);
+  insert_by_addr(bp);
   //printf("root %lx \n", current_free_list);
-  PUT_DW(current_free_list, bp);
+  
   return NULL;
 }
 
