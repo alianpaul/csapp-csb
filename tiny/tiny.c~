@@ -1,0 +1,84 @@
+#include "csapp.h"
+
+void doit(int fd);
+void read_requesthdrs(rio_t *riop);
+
+int main(int argc, char **argv)
+{
+  int port,listenfd,connfd,clientlen;
+  struct sockaddr_in clientaddr;
+  /*
+  char buf[MAXLINE];
+  rio_t rio;
+  size_t n;
+  */
+
+  if(argc != 2)
+    {
+      fprintf(stderr, "usage: %s <port>\n", argv[0]);
+      exit(1);
+    }
+  
+  port = atoi(argv[1]);
+
+  listenfd = Open_listenfd(port);
+  while(1)
+    {
+      clientlen = sizeof(clientaddr);
+      connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+      doit(connfd);
+      Close(connfd);
+    }
+  
+  
+}
+
+
+void doit(int fd)
+{
+  rio_t rio;
+  char buf[MAXLINE], method[MAXLINE], version[MAXLINE],uri[MAXLINE];
+  char filename[MAXLINE], cgiargs[MAXLINE];
+  int is_static;
+  /*Read request line and headers*/
+  Rio_readinitb(&rio, fd);
+  Rio_readlineb(&rio, buf, MAXLINE);
+  printf("%s",buf);
+  sscanf(buf,"%s %s %s", method,uri,version); //format the input
+  /*strcasecmp ignore upper lower case cmp string
+   *return 0 if equal
+   */
+  if(strcasecmp(method, "GET"))
+    {
+      /*error method not inplement*/
+      return;
+    }
+
+  /*cool once the rio is init,we only need the rio 
+  to readlineb*/
+  read_requesthdrs(&rio);
+  
+  /*parse the uri from GET to determine static or dynamic contents the browser
+   *it request
+   */
+  is_static = parse_uri(uri, filename, cgiargs);
+  
+}
+
+void read_requesthdrs(rio_t *riop)
+{
+  char buf[MAXLINE];
+  Rio_readlineb(riop, buf, MAXLINE);
+  while(strcmp(buf, "\r\n"))
+    {
+      printf("%s", buf);
+      Rio_readlineb(riop, buf, MAXLINE);
+    } 
+  return;
+}
+
+int parse_uri(char *uri, char *filename, char*cgiargs)
+{
+  printf("/n");
+  return 0;
+}
