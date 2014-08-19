@@ -50,6 +50,7 @@ void doit(int fd)
   /*Read request line and headers*/
   Rio_readinitb(&rio, fd);
   Rio_readlineb(&rio, buf, MAXLINE);
+  printf("%s",buf);
   sscanf(buf,"%s %s %s", method,uri,version); //format the input
   /*strcasecmp ignore upper lower case cmp string
    *return 0 if equal
